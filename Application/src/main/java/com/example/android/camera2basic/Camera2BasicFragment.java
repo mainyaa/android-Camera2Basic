@@ -40,6 +40,7 @@ import android.hardware.camera2.CameraMetadata;
 import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.CaptureResult;
 import android.hardware.camera2.TotalCaptureResult;
+import android.hardware.camera2.params.Face;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.Image;
 import android.media.ImageReader;
@@ -282,6 +283,10 @@ public class Camera2BasicFragment extends Fragment
             = new CameraCaptureSession.CaptureCallback() {
 
         private void process(CaptureResult result) {
+            Integer mode = result.get(CaptureResult.STATISTICS_FACE_DETECT_MODE);
+            Face[] faces = result.get(CaptureResult.STATISTICS_FACES);
+            if(faces != null && mode != null)
+                Log.e("tag", "faces : " + faces.length + " , mode : " + mode );
             switch (mState) {
                 case STATE_PREVIEW: {
                     // We have nothing to do when the camera preview is working normally.
@@ -289,7 +294,8 @@ public class Camera2BasicFragment extends Fragment
                 }
                 case STATE_WAITING_LOCK: {
                     Integer afState = result.get(CaptureResult.CONTROL_AF_STATE);
-                    if (afState == null) {
+                    if (afState == null || CaptureResult.CONTROL_AF_STATE_INACTIVE == afState) {
+                        mState = STATE_PICTURE_TAKEN;
                         captureStillPicture();
                     } else if (CaptureResult.CONTROL_AF_STATE_FOCUSED_LOCKED == afState ||
                             CaptureResult.CONTROL_AF_STATE_NOT_FOCUSED_LOCKED == afState) {
@@ -306,6 +312,7 @@ public class Camera2BasicFragment extends Fragment
                     break;
                 }
                 case STATE_WAITING_PRECAPTURE: {
+                    Log.d(TAG, "mState: "+STATE_WAITING_PRECAPTURE);
                     // CONTROL_AE_STATE can be null on some devices
                     Integer aeState = result.get(CaptureResult.CONTROL_AE_STATE);
                     if (aeState == null ||
@@ -316,6 +323,7 @@ public class Camera2BasicFragment extends Fragment
                     break;
                 }
                 case STATE_WAITING_NON_PRECAPTURE: {
+                    Log.d(TAG, "mState: "+STATE_WAITING_NON_PRECAPTURE);
                     // CONTROL_AE_STATE can be null on some devices
                     Integer aeState = result.get(CaptureResult.CONTROL_AE_STATE);
                     if (aeState == null || aeState != CaptureResult.CONTROL_AE_STATE_PRECAPTURE) {
@@ -338,6 +346,8 @@ public class Camera2BasicFragment extends Fragment
         public void onCaptureCompleted(@NonNull CameraCaptureSession session,
                                        @NonNull CaptureRequest request,
                                        @NonNull TotalCaptureResult result) {
+
+            Log.e(TAG, "onCaptureCompleted");
             process(result);
         }
 
@@ -493,7 +503,7 @@ public class Camera2BasicFragment extends Fragment
 
                 // We don't use a front facing camera in this sample.
                 Integer facing = characteristics.get(CameraCharacteristics.LENS_FACING);
-                if (facing != null && facing == CameraCharacteristics.LENS_FACING_FRONT) {
+                if (facing != null && facing == CameraCharacteristics.LENS_FACING_BACK) {
                     continue;
                 }
 
@@ -501,6 +511,12 @@ public class Camera2BasicFragment extends Fragment
                         CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
                 if (map == null) {
                     continue;
+                }
+                Integer level = characteristics.get(CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL);
+                Log.e(TAG, "level: "+level);
+                int[] avarables = characteristics.get(CameraCharacteristics.STATISTICS_INFO_AVAILABLE_FACE_DETECT_MODES);
+                for (int a : avarables) {
+                    Log.e(TAG, "avarable: " + a);
                 }
 
                 // For still image captures, we use the largest available size.
@@ -682,7 +698,8 @@ public class Camera2BasicFragment extends Fragment
             mPreviewRequestBuilder
                     = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
             mPreviewRequestBuilder.addTarget(surface);
-
+            mPreviewRequestBuilder.set(CaptureRequest.STATISTICS_FACE_DETECT_MODE,
+                    CameraMetadata.STATISTICS_FACE_DETECT_MODE_SIMPLE);
             // Here, we create a CameraCaptureSession for camera preview.
             mCameraDevice.createCaptureSession(Arrays.asList(surface, mImageReader.getSurface()),
                     new CameraCaptureSession.StateCallback() {
@@ -769,6 +786,7 @@ public class Camera2BasicFragment extends Fragment
      */
     private void lockFocus() {
         try {
+            Log.d(TAG, "lockFocus");
             // This is how to tell the camera to lock focus.
             mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AF_TRIGGER,
                     CameraMetadata.CONTROL_AF_TRIGGER_START);
@@ -787,6 +805,7 @@ public class Camera2BasicFragment extends Fragment
      */
     private void runPrecaptureSequence() {
         try {
+            Log.d(TAG, "runPrecaptureSequence");
             // This is how to tell the camera to trigger.
             mPreviewRequestBuilder.set(CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER,
                     CaptureRequest.CONTROL_AE_PRECAPTURE_TRIGGER_START);
@@ -805,6 +824,7 @@ public class Camera2BasicFragment extends Fragment
      */
     private void captureStillPicture() {
         try {
+            Log.d(TAG, "captureStillPicture");
             final Activity activity = getActivity();
             if (null == activity || null == mCameraDevice) {
                 return;
@@ -831,6 +851,11 @@ public class Camera2BasicFragment extends Fragment
                                                @NonNull CaptureRequest request,
                                                @NonNull TotalCaptureResult result) {
                     showToast("Saved: " + mFile);
+                    Log.d(TAG, mFile.toString());
+                    Integer mode = result.get(CaptureResult.STATISTICS_FACE_DETECT_MODE);
+                    Face[] faces = result.get(CaptureResult.STATISTICS_FACES);
+                    if(faces != null && mode != null)
+                        Log.e("tag", "faces : " + faces.length + " , mode : " + mode );
                     Log.d(TAG, mFile.toString());
                     unlockFocus();
                 }
